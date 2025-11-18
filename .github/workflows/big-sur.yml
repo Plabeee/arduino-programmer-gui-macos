@@ -29,6 +29,7 @@ jobs:
       - name: 📂 Move Source Files to Root
         # This step moves the contents of the 'Source' directory
         # to the root of the workspace (where the workflow runs).
+        shell: pwsh
         run: |
           # Use Move-Item (mv) to move the *contents* of the Source folder
           # The -Force argument handles potential overwrites, though unlikely here.
