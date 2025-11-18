@@ -1,0 +1,127 @@
+name: Build macOS 11 Executable with PyInstaller
+
+on:
+  push:
+    branches:
+      - main
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build_macos:
+    runs-on: macos-latest  # Use a macOS runner for the build
+    env:
+      # Define the version once at the job level for easy updates
+      ARDUINO_CLI_VERSION: 1.3.1 # Set the specific version you want to use
+    # This permission is required for the action to create a GitHub Release
+    permissions:
+      contents: write
+
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x' # Specify your required Python version
+
+      - name: 📂 Move Source Files to Root
+        # This step moves the contents of the 'Source' directory
+        # to the root of the workspace (where the workflow runs).
+        shell: pwsh
+        run: |
+          # Use Move-Item (mv) to move the *contents* of the Source folder
+          # The -Force argument handles potential overwrites, though unlikely here.
+          # The destination '.' means the current directory (the workspace root).
+          Move-Item -Path .\Source\* -Destination .\ -Force
+          # You might want to remove the now-empty Source folder
+          Remove-Item -Path .\Source -Recurse -Force
+          # --- This is the implementation of Step 2 from your README ---
+
+      - name: Download and Install arduino-cli (macOS Intel)
+        shell: bash
+        run: |
+          # Construct the download URL for macOS Intel (64bit)
+          # Note: Use 'macOS_ARM64' if you ever switch to Apple Silicon runners
+          URL="https://github.com/arduino/arduino-cli/releases/download/v${{ env.ARDUINO_CLI_VERSION }}/arduino-cli_${{ env.ARDUINO_CLI_VERSION }}_macOS_64bit.tar.gz"
+          OUTPUT_FILE="arduino-cli.tar.gz"
+
+          # Download the file
+          echo "Downloading arduino-cli from $URL"
+          curl -L -o $OUTPUT_FILE $URL
+
+          # Extract the tar.gz file
+          echo "Extracting $OUTPUT_FILE"
+          tar -xzf $OUTPUT_FILE
+
+          # Clean up the downloaded file
+          echo "Cleaning up $OUTPUT_FILE"
+          rm $OUTPUT_FILE
+
+          # Ensure the binary is executable
+          chmod +x arduino-cli
+
+          echo "arduino-cli is ready in the Source directory."
+
+      - name: 📦 Install Dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          # Replace requirements.txt with your actual requirements file
+          # pip install -r requirements.txt
+          # Install PyInstaller
+          pip install pyinstaller PyQt5 pyserial Pillow
+      
+      - name: 🔨 Build with PyInstaller
+        # Adjust the command and options as needed:
+        # --onefile: Creates a single executable file (default is a folder)
+        # --windowed: Creates a .app bundle (for GUI apps)
+        # --name: Sets the name of the executable/app bundle
+        # your_script.py: Replace with the path to your main Python script
+        run: |
+          source .venv/bin/activate
+          pyinstaller --onefile --windowed --add-data="arduino-cli:." --name "HEX_Flasher" ArduinoFlasher_1.0.py
+      - name: Package .app as a .zip file
+        run: |
+          echo "Compressing HEX_Flasher.app..."
+          # -r = recursive, to include everything in the .app directory
+          zip -r HEX_Flasher.zip ./dist/HEX_Flasher.app
+
+      # 7. Create or Update the "latest" Release
+      # This step uses the GitHub CLI (gh) which is pre-installed.
+      # It tries to create a release. If it fails (because "latest" exists),
+      # it deletes and re-creates it, ensuring the "latest" tag
+      # always points to the newest commit on 'main'.
+      # PyInstaller puts the result in the 'dist' folder
+          # path: dist/
+      - name: Create or Update "latest" Release
+        env:
+          # The GITHUB_TOKEN is automatically provided by Actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Try to create the release. This will tag the current commit as "latest"
+          # If it fails (because "latest" tag/release already exists), it will exit with an error.
+          gh release create latest \
+            --title "Latest Build (main)" \
+            --notes "Automatic build from the main branch." \
+            --latest \
+            --prerelease=false \
+            --draft=false \
+            ./HEX_Flasher.zip \
+          || \
+          ( \
+            echo "Release 'latest' already exists. Re-creating..." && \
+            # Delete the existing release. This also deletes the "latest" tag.
+            gh release delete latest -y && \
+            # Re-create the release, which will tag the current commit as "latest"
+            gh release create latest \
+              --title "Latest Build (main)" \
+              --notes "Automatic build from the main branch." \
+              --latest \
+              --prerelease=false \
+              --draft=false \
+              ./HEX_Flasher.zip \
+          )
+          
