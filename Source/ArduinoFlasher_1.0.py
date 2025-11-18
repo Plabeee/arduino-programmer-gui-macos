@@ -11,6 +11,7 @@ import os
 import sys
 import glob
 import serial
+import serial.tools.list_ports
 import os.path
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QApplication, QWidget, QInputDialog, QLineEdit, QFileDialog, QComboBox
@@ -62,34 +63,11 @@ flag_input_file = '--input-file'
 #testComPort = 'COM6'
 
 def serial_ports():
-    """ Lists serial port names
-
-        :raises EnvironmentError:
-            On unsupported or unknown platforms
-        :returns:
-            A list of the serial ports available on the system
+    """ Lists serial port names using pyserial's built-in tool.
+        This avoids the 'RFCOMM' bluetooth error by querying the OS 
+        instead of trying to open every single port.
     """
-    if sys.platform.startswith('win'):
-        ports = ['COM%s' % (i + 1) for i in range(256)]
-    elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
-        # this excludes your current terminal "/dev/tty"
-        ports = glob.glob('/dev/tty[A-Za-z]*')
-    elif sys.platform.startswith('darwin'):
-        ports = glob.glob('/dev/tty.*')
-    else:
-        raise EnvironmentError('Unsupported platform')
-
-    result = []
-    for port in ports:
-        try:
-            s = serial.Serial(port)
-            s.close()
-            result.append(port)
-            #numberOfPortsFound = numberOfPortsFound + 1
-        except (OSError, serial.SerialException):
-            #print("ERRORS")
-            pass
-    return result
+    return [port.device for port in serial.tools.list_ports.comports()]
 
 class Ui_MainWindow(QWidget):
     def setupUi(self, MainWindow):
