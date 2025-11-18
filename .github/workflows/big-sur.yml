@@ -9,7 +9,7 @@ on:
 
 jobs:
   build_macos:
-    runs-on: macos-15  # Use a macOS runner for the build
+    runs-on: macos-14  # Use a macOS runner for the build
     env:
       # CRITICAL: This tells the C compiler and Linker to support macOS 11
       MACOSX_DEPLOYMENT_TARGET: "11.0"
