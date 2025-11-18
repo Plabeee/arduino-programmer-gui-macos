@@ -13,6 +13,8 @@ jobs:
     env:
       # CRITICAL: This tells the C compiler and Linker to support macOS 11
       MACOSX_DEPLOYMENT_TARGET: "11.0"
+      # Define the version once at the job level for easy updates
+      ARDUINO_CLI_VERSION: 1.3.1 # Set the specific version you want to use
     # This permission is required for the action to create a GitHub Release
     permissions:
       contents: write
@@ -39,6 +41,31 @@ jobs:
           Remove-Item -Path .\Source -Recurse -Force
           # --- This is the implementation of Step 2 from your README ---
 
+      - name: Download and Install arduino-cli (macOS Intel)
+        shell: bash
+        run: |
+          # Construct the download URL for macOS Intel (64bit)
+          # Note: Use 'macOS_ARM64' if you ever switch to Apple Silicon runners
+          URL="https://github.com/arduino/arduino-cli/releases/download/v${{ env.ARDUINO_CLI_VERSION }}/arduino-cli_${{ env.ARDUINO_CLI_VERSION }}_macOS_64bit.tar.gz"
+          OUTPUT_FILE="arduino-cli.tar.gz"
+
+          # Download the file
+          echo "Downloading arduino-cli from $URL"
+          curl -L -o $OUTPUT_FILE $URL
+
+          # Extract the tar.gz file
+          echo "Extracting $OUTPUT_FILE"
+          tar -xzf $OUTPUT_FILE
+
+          # Clean up the downloaded file
+          echo "Cleaning up $OUTPUT_FILE"
+          rm $OUTPUT_FILE
+
+          # Ensure the binary is executable
+          chmod +x arduino-cli
+
+          echo "arduino-cli is ready in the Source directory."
+
       - name: 📦 Install Dependencies
         run: |
           python -m venv .venv
@@ -57,7 +84,7 @@ jobs:
         # your_script.py: Replace with the path to your main Python script
         run: |
           source .venv/bin/activate
-          pyinstaller --onefile --windowed --name "HEX_Flasher" ArduinoFlasher_1.0.py
+          pyinstaller --onefile --windowed --add-data="arduino-cli:." --name "HEX_Flasher" ArduinoFlasher_1.0.py
       - name: Package .app as a .zip file
         run: |
           echo "Compressing HEX_Flasher.app..."
